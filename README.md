@@ -1,60 +1,60 @@
-# MX002 Linux User-Space Driver
+# Gadnic Magic Draw Linux User-Space Driver
+![](assets/gadnic_magic_draw.jpg)
+This README provides information about the Linux user-space driver 
+for the graphics tablet sold in Argentina as the Gadnic Magic Draw (model GRF785).
 
-This README provides information about the Linux user-space driver for the graphics tablet sold in Brazil as the Multilaser MX002. The driver supports various rebranded versions of the same device.
+The driver supports various rebranded versions of the same device, 
+but this particular version has been tweaked specifically
+for the Magic Draw tablet.
 
-# Changes made:
-Added a small snippet to regulate the touch and pen proximity sensitivity.Other things like strength of the line are also taken on consideration,even though not tested.The changes can be made in this snippet:
+## Changes
 
-    fn normalize_pressure(raw_pressure: i32) -> i32 {
-        let proximity_threshold = 600; // Adjust for proximity sensitivity
-        let strength_scaling = 2; // Adjust for strength of the press
-    
-        match 1740 - raw_pressure {
-            x if x <= proximity_threshold => 0,
-            x => x * strength_scaling, // Scale the pressure for stronger presses
-        }
+The pressure sensitivity calibration has been adjusted so the pen works correctly while drawing.
+The tablet buttons are documented below so they can be remapped to your liking:
+
+```rust
+fn normalize_pressure(raw_pressure: i32) -> i32 {
+    let proximity_threshold = 250; // Adjust for proximity sensitivity
+    let strength_scaling = 8; // Adjust for strength of the press
+
+    match 1740 - raw_pressure {
+        x if x <= proximity_threshold => 0,
+        x => x * strength_scaling, // Scale the pressure for stronger presses
     }
+}
+```
 
-Be wary that the lower the threshold goes,the more probable it is for the pen to be detected wrongly.Make it a very big number,and the touch will stop working(But the rover will still woker.
+Further improvements may be added as the tablet is tested more thoroughly or as users contribute enhancements.
+
 ## Supported Devices
 
 This driver is intended for use with the following devices:
-- Multilaser MX002
-- VINSA 1060Plus
-- Gotop Information Inc. [T501] Driver Inside Tablet
-- 10moons G10/1060plus
+- Gadnic Magic Draw GRF785
 
-To check if this driver is compatible with your device, you can run the following command:
-
-```bash
-lsusb | grep 08f2:6811
-```
-
-If your device is supported, the output should look similar to this:
-
-```
-Bus 001 Device 005: ID 08f2:6811 Gotop Information Inc. [T501] Driver Inside Tablet
-```
 
 ## Features
 
-- Utilizes the tablet's full area.
+- Utilizes the tablet's full active area.
 - All 12 physical buttons are functional.
 - Both stylus buttons are operational.
-- Supports about 700 levels of pressure sensitivity. While the device is marketed with 8192 levels, the hardware only reports 1024, of which roughly 700 are usable without risking damage to the stylus.
+- Supports about 700 levels of pressure sensitivity.
+While the device is marketed with 8192 levels, the hardware only 
+reports 1024, of which roughly 700 are usable without risking 
+damage to the stylus.
 
 ## Installation
 
-To build and run the driver, follow these steps:  
-[You will need rust installed](https://wiki.archlinux.org/title/rust)
+To build the driver, follow these steps:
+
+> **Note:** You will need [Rust](https://wiki.archlinux.org/title/rust) installed.
 
 ```bash
-git clone git@github.com:marvinbelfort/mx002_linux_driver.git
-cd mx002_linux_driver
+git clone git@github.com:vlank/gadnic_magic_draw_grf785_linux_driver.git
+cd gadnic_magic_draw_grf785_linux_driver
 cargo build --release
 ```
 
-The driver will be located in `target/release/mx002`.
+The driver will be located in `target/release/gadnic_magic_draw`.
 
 ## Usage
 
@@ -63,66 +63,106 @@ To run the driver, you have two options:
 1. **Run as Root:**
 
    ```bash
-   sudo ./mx002
+   sudo ./gadnic_magic_draw
    ```
 
 2. **Create a udev Rule:**
 
-   For Arch Linux (this may vary by distribution):
+   For Fedora/Nobara Linux (this may vary by distribution):
 
    ```bash
-   echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="08f2", ATTRS{idProduct}=="6811", TAG+="uaccess"' > /etc/udev/rules.d/99-mx002.rules
+   sudo tee /etc/udev/rules.d/99-gadnic_magic_draw.rules << 'EOF'
+ SUBSYSTEM=="usb", ATTR{idVendor}=="08f2", ATTR{idProduct}=="6811", MODE="0666"
+ SUBSYSTEM=="input", GROUP="input", MODE="0666"
+ KERNEL=="uinput", MODE="0666", GROUP="input"
+ EOF
    sudo udevadm control --reload-rules
    sudo udevadm trigger
    ```
 
    This allows any user to run the driver without needing sudo.
 
-## Multiple Monitors:
+## Automatic Startup
 
-Show input devices with:
+After a shutdown or restart, the driver must be started manually. 
+To make the tablet work automatically on login, 
+the recommended approach is to create a systemd user service.
+
+1. Create the service file
+
+   ```bash
+   mkdir -p ~/.config/systemd/user
+   nano ~/.config/systemd/user/gadnic_magic_draw.service
+   ```
+
+2. Paste this content (replace **user** with your username if it's different):
+
+   ```ini
+   [Unit]
+   Description=Gadnic Magic Draw Graphics Tablet Driver
+   After=graphical-session.target
+   
+   [Service]
+   ExecStart=/home/user/gadnic_magic_draw_grf785_linux_driver/target/release/gadnic_magic_draw
+   Restart=on-failure
+   RestartSec=2
+   
+   [Install]
+   WantedBy=default.target
+   ```
+3. Enable it
+
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable --now gadnic_magic_draw.service
+   ```
+
+This will make the driver start automatically every time you log in. 
+You can check its status with `systemctl --user status gadnic_magic_draw.service`.
+
+## Customizing Keymaps
+![](assets/gadnic_magic_draw_buttons.jpg)
+
+The driver maps each physical tablet button to a virtual key or key 
+combination, which is defined in the keymap inside the source code in
+`src/virtual_device.rs`.
+The keymap is a list of tuples, where each entry associates a **button ID** with a sequence of keys to emit:
+
+```rust
+(6, vec![Key::KEY_LEFTBRACE]),
+```
+
+In this example, **button ID 6** emits `KEY_LEFTBRACE`. You can change the emitted keys to whatever you like — a single key or a combination.
+
+> On Linux, **X11 keycodes are calculated as `evdev code + 8`**. So if a button emits `KEY_LEFTBRACE` (evdev code `26`), the resulting X11 keycode is `34`. On a Spanish keyboard layout, that keycode corresponds to `dead_acute` (´).
+
+
+### Modifying a Keymap Entry
+
+To change the behavior of a button, edit its line in the keymap. For example, to map button ID 6 to `Ctrl+Z` (undo):
+
+```rust
+(6, vec![Key::KEY_LEFTCTRL, Key::KEY_Z]), // 5
+```
+
+Or to a single key like `Escape`:
+
+```rust
+(6, vec![Key::KEY_ESC]), // 5
+```
+
+After editing the keymap, recompile the driver and restart the service:
+
 ```bash
-xinput
-
-⎡ Virtual core pointer                    	id=2	[master pointer  (3)]
-... 
-⎜   ↳ virtual_tablet Pen (0)                  	id=10	[slave  pointer  (2)]
-⎣ Virtual core keyboard                   	id=3	[master keyboard (2)]
-...
-    ↳ virtual_tablet                          	id=8	[slave  keyboard (3)]
-    ↳ virtual_tablet                          	id=9	[slave  keyboard (3)]
+cd ~/gadnic_magic_draw_grf785_linux_driver
+cargo build --release
+systemctl --user restart gadnic_magic_draw.service
 ```
 
-If you can't see the entry "virtual_tablet Pen", move the pen a bit and run the command again.
-Remember it's id (10 in the example)
-
-List existing monitors:
-```
-xrandr | rg '\bconnected\b'
-
-HDMI-0 connected primary 2560x1080+0+0 (normal left inverted right x axis y axis) 673mm x 284mm
-DP-2 connected 1680x1050+2560+84 (normal left inverted right x axis y axis) 473mm x 296mm
-```
-
-So, to map the pen's movement only to monitor 2, use:
-
-```bash
-xinput map-to-output 10 "DP-2"
-```
-
-
-
-## TODOs
-
-- Enable more direct configuration of emitted key combinations.
-- Implement mapping of the tablet area vs. multiple monitors.
-- Exhaust the SET REPORT HID protocol combinations to determine if any of them enable the advertised pressure of 8192. (but I really suspect that's all there is to it.)
-- Add support for the 10 virtual buttons.
 
 ## References
 
 - [Tool that enables expanded mode for the tablet, by DigiMend](https://github.com/DIGImend/10moons-tools)
 - [Learning about the possibility of creating user-space drivers](https://github.com/alex-s-v/10moons-driver)
-
-This code is a combination of the two above, with some improvements.
-
+- [Marvin's work](https://github.com/marvinbelfort/mx002_linux_driver)
+- [Paulo Carvalho post](https://krita-artists.org/t/solution-to-gotop-vinsa-t505-linux-driver/163760)
