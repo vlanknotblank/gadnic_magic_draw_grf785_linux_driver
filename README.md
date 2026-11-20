@@ -60,27 +60,33 @@ The driver will be located in `target/release/gadnic_magic_draw`.
 
 To run the driver, you have two options:
 
-1. **Run as Root:**
+### **Run as Root:**
 
    ```bash
    sudo ./gadnic_magic_draw
    ```
 
-2. **Create a udev Rule:**
+### **Create a udev Rule and run without sudo**
 
    For Fedora/Nobara Linux (this may vary by distribution):
 
-   ```bash
+   ```
    sudo tee /etc/udev/rules.d/99-gadnic_magic_draw.rules << 'EOF'
-     SUBSYSTEM=="usb", ATTR{idVendor}=="08f2", ATTR{idProduct}=="6811", MODE="0666"
-     SUBSYSTEM=="input", GROUP="input", MODE="0666"
-     KERNEL=="uinput", MODE="0666", GROUP="input"
-     EOF
+   SUBSYSTEM=="usb", ATTR{idVendor}=="08f2", ATTR{idProduct}=="6811", MODE="0666"
+   SUBSYSTEM=="input", GROUP="input", MODE="0666"
+   KERNEL=="uinput", MODE="0666", GROUP="input"
+   EOF
+     ```
+   ```bash
    sudo udevadm control --reload-rules
    sudo udevadm trigger
    ```
 
    This allows any user to run the driver without needing sudo.
+```
+./gadnic_magic_draw
+```
+
 
 ## Automatic Startup
 
@@ -103,7 +109,7 @@ the recommended approach is to create a systemd user service.
    After=graphical-session.target
    
    [Service]
-   ExecStart=/home/user/gadnic_magic_draw_grf785_linux_driver/target/release/gadnic_magic_draw
+   ExecStart=/home/{user}/gadnic_magic_draw_grf785_linux_driver/target/release/gadnic_magic_draw
    Restart=on-failure
    RestartSec=2
    
