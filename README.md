@@ -72,10 +72,10 @@ To run the driver, you have two options:
 
    ```bash
    sudo tee /etc/udev/rules.d/99-gadnic_magic_draw.rules << 'EOF'
- SUBSYSTEM=="usb", ATTR{idVendor}=="08f2", ATTR{idProduct}=="6811", MODE="0666"
- SUBSYSTEM=="input", GROUP="input", MODE="0666"
- KERNEL=="uinput", MODE="0666", GROUP="input"
- EOF
+     SUBSYSTEM=="usb", ATTR{idVendor}=="08f2", ATTR{idProduct}=="6811", MODE="0666"
+     SUBSYSTEM=="input", GROUP="input", MODE="0666"
+     KERNEL=="uinput", MODE="0666", GROUP="input"
+     EOF
    sudo udevadm control --reload-rules
    sudo udevadm trigger
    ```
